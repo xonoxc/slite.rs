@@ -1,16 +1,16 @@
 #[derive(Debug)]
 pub struct InputBuffer {
-    pub buffer: Option<char>,
-    pub buffer_length: i32,
-    pub input_length: i32,
+    pub buffer: String,
 }
 
 impl InputBuffer {
     pub fn new() -> Self {
-        InputBuffer {
-            buffer: None,
-            buffer_length: 0,
-            input_length: 0,
+        Self {
+            buffer: String::new(),
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.buffer.clear();
     }
 }
