@@ -1,5 +1,5 @@
-use crate::input_buffer::InputBuffer;
-use std::str::FromStr;
+use crate::{input_buffer::InputBuffer, row::Row};
+use std::{i32, str::FromStr};
 
 #[derive(Debug)]
 pub enum MetaCmdRes {
@@ -26,7 +26,7 @@ impl FromStr for MetaCmdRes {
 
 #[derive(Debug)]
 pub enum StatementType {
-    StatementInsert { args: Vec<String> },
+    StatementInsert { row: Row },
     StatementSelect,
 }
 
@@ -39,13 +39,22 @@ impl FromStr for StatementType {
         let command = parts.next().ok_or(())?;
         match command {
             ".insert" => {
-                let args: Vec<String> = parts.map(|s| s.to_string()).collect();
+                let args: Vec<&str> = parts.collect();
 
-                if args.is_empty() {
-                    return Err(());
+                match args.as_slice() {
+                    [id_str, username, email] => {
+                        let id = id_str.parse::<i32>().map_err(|_| ())?;
+
+                        Ok(StatementType::StatementInsert {
+                            row: Row {
+                                id,
+                                username: username.to_string(),
+                                email: email.to_string(),
+                            },
+                        })
+                    }
+                    _ => Err(()),
                 }
-
-                Ok(StatementType::StatementInsert { args })
             }
             ".select" => Ok(StatementType::StatementSelect),
             _ => Err(()),
@@ -73,9 +82,7 @@ pub fn parse_statement(buffer: &InputBuffer) -> PrepareResult {
 
 pub fn exec_statement(statement_type: StatementType) {
     match statement_type {
-        StatementType::StatementInsert { args } => {
-            println!("exectuing insert! with args {:?}", args)
-        }
+        StatementType::StatementInsert { row } => println!("exectuing insert! with args {:?}", row),
         StatementType::StatementSelect => println!("executing select"),
     }
 }
