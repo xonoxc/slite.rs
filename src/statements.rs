@@ -26,7 +26,7 @@ impl FromStr for MetaCmdRes {
 
 #[derive(Debug)]
 pub enum StatementType {
-    StatementInsert,
+    StatementInsert { args: Vec<String> },
     StatementSelect,
 }
 
@@ -34,8 +34,19 @@ impl FromStr for StatementType {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            ".insert" => Ok(StatementType::StatementInsert),
+        let mut parts = s.trim().split_whitespace();
+
+        let command = parts.next().ok_or(())?;
+        match command {
+            ".insert" => {
+                let args: Vec<String> = parts.map(|s| s.to_string()).collect();
+
+                if args.is_empty() {
+                    return Err(());
+                }
+
+                Ok(StatementType::StatementInsert { args })
+            }
             ".select" => Ok(StatementType::StatementSelect),
             _ => Err(()),
         }
@@ -62,7 +73,9 @@ pub fn parse_statement(buffer: &InputBuffer) -> PrepareResult {
 
 pub fn exec_statement(statement_type: StatementType) {
     match statement_type {
-        StatementType::StatementInsert => println!("exectuing insert!"),
+        StatementType::StatementInsert { args } => {
+            println!("exectuing insert! with args {:?}", args)
+        }
         StatementType::StatementSelect => println!("executing select"),
     }
 }

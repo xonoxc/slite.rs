@@ -17,14 +17,26 @@ pub fn run() {
 
 fn exec_command(command: &str) {
     match command.parse::<CLIcommand>() {
+        /*
+         *  if exit meta command
+         * **/
         Ok(CLIcommand::Meta(MetaCmdRes::ExitCmd)) => process::exit(0),
 
+        /*
+         *  if any other meta command
+         * **/
         Ok(CLIcommand::Meta(_)) => {
             println!("executing meta command!")
         }
 
+        /*
+         * if a statement
+         * **/
         Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type),
 
+        /*
+         * invalid command
+         * **/
         Err(_) => println!("Invalid command"),
     }
 }
