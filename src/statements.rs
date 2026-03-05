@@ -1,4 +1,10 @@
-use crate::{input_buffer::InputBuffer, row::Row};
+use crate::{
+    data::{
+        row::Row,
+        table::{TABLE_MAX_ROWS, Table},
+    },
+    input_buffer::InputBuffer,
+};
 use std::{i32, str::FromStr};
 
 #[derive(Debug)]
@@ -23,7 +29,6 @@ impl FromStr for MetaCmdRes {
         Ok(MetaCmdRes::MetaRecognizedCommand)
     }
 }
-
 #[derive(Debug)]
 pub enum StatementType {
     StatementInsert { row: Row },
@@ -80,9 +85,46 @@ pub fn parse_statement(buffer: &InputBuffer) -> PrepareResult {
     }
 }
 
-pub fn exec_statement(statement_type: StatementType) {
-    match statement_type {
-        StatementType::StatementInsert { row } => println!("exectuing insert! with args {:?}", row),
-        StatementType::StatementSelect => println!("executing select"),
+pub fn exec_statement(statement_type: StatementType, table: &mut Table) {
+    let excution_res = match statement_type {
+        StatementType::StatementInsert { ref row } => exec_insert(&row, table),
+        StatementType::StatementSelect => exec_select(table),
+    };
+
+    match excution_res {
+        ExecStatementRes::ExecFailure { cause } => println!("Excution failed :: {}", cause),
+        ExecStatementRes::ExecSuccess => println!("Operation success!!"),
+    };
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum ExecStatementRes {
+    ExecSuccess,
+    ExecFailure { cause: &'static str },
+}
+
+fn exec_insert(row: &Row, table: &mut Table) -> ExecStatementRes {
+    if table.rows >= TABLE_MAX_ROWS {
+        return ExecStatementRes::ExecFailure {
+            cause: "table full",
+        };
     }
+
+    let slot = table.get_row_slot(table.rows);
+    row.serialize(slot);
+    table.rows += 1;
+
+    ExecStatementRes::ExecSuccess
+}
+
+fn exec_select(table: &mut Table) -> ExecStatementRes {
+    let mut row = Row::new();
+
+    for i in 0..table.rows {
+        let slot = table.get_row_slot(i);
+        row.ingest_deserialized(slot.as_ref());
+        println!("{:?}", row)
+    }
+
+    ExecStatementRes::ExecSuccess
 }

@@ -2,41 +2,33 @@ use std::io::{self, Write};
 use std::process::{self};
 
 use crate::cmd::CLIcommand;
+use crate::data::table::Table;
 use crate::input_buffer::InputBuffer;
 use crate::statements::{MetaCmdRes, exec_statement};
 
 pub fn run() {
     println!("Welcome to slite-rs CLI:");
 
+    let mut main_table = Table::new();
+
     let mut command = InputBuffer::new();
+
     loop {
         next_prompt();
-        exec_command(read_prompt(&mut command).buffer.trim())
+        exec_command(&mut main_table, read_prompt(&mut command).buffer.trim())
     }
 }
 
-fn exec_command(command: &str) {
+fn exec_command(table: &mut Table, command: &str) {
     match command.parse::<CLIcommand>() {
-        /*
-         *  if exit meta command
-         * **/
         Ok(CLIcommand::Meta(MetaCmdRes::ExitCmd)) => process::exit(0),
 
-        /*
-         *  if any other meta command
-         * **/
         Ok(CLIcommand::Meta(_)) => {
             println!("executing meta command!")
         }
 
-        /*
-         * if a statement
-         * **/
-        Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type),
+        Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, table),
 
-        /*
-         * invalid command
-         * **/
         Err(_) => println!("Invalid command"),
     }
 }
