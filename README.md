@@ -10,12 +10,30 @@ This project is inspired by the "Build a SQL Database from Scratch" tutorial app
 
 ## Current Status
 
-This project is in its early stages. Currently implemented:
+This project is in early development. Currently implemented:
 
 - Basic CLI with read-eval-print loop (REPL)
 - Input buffer handling
 - Meta command parsing (e.g., `.exit`)
 - Basic statement recognition (`.insert`, `.select`)
+- Row serialization/deserialization
+- Table structure with row storage (in-memory)
+- Module structure with `data/` folder
+
+## Project Structure
+
+```
+src/
+  main.rs       - Entry point
+  cli.rs        - REPL loop and command execution
+  cmd.rs        - CLI command parsing
+  statements.rs - SQL statement types & execution
+  input_buffer.rs - Input handling
+  data/
+    mod.rs      - Data module exports
+    row.rs      - Row struct with serialize/deserialize
+    table.rs    - Table structure
+```
 
 ## Getting Started
 
@@ -36,27 +54,16 @@ cargo run
 Once running, you'll see a prompt where you can enter commands:
 
 ```sql
-> .insert
-executing insert!
+> .insert 1 username email@example.com
+exectuing insert! with args Row { ... }
 > .select
 executing select
 > .exit
 ```
 
-## Project Structure
-
-```
-src/
-  main.rs       - Entry point
-  cli.rs        - REPL loop and command execution
-  cmd.rs        - CLI command parsing
-  statements.rs - SQL statement types
-  input_buffer.rs - Input handling
-```
-
 ## Roadmap
 
-- [ ] Implement table structure and row storage
+- [x] Implement table structure and row storage
 - [ ] Add B-tree index implementation
 - [ ] Implement cursor operations
 - [ ] Support basic SQL syntax (CREATE, INSERT, SELECT, DELETE)
