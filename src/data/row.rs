@@ -35,7 +35,8 @@ impl Row {
         let username_dest = &mut destination[USERNAME_OFFSET..USERNAME_OFFSET + USERNAME_SIZE];
 
         username_dest.fill(0);
-        username_dest[..username_bytes.len()].copy_from_slice(username_bytes);
+        let username_copy_len = username_bytes.len().min(USERNAME_SIZE);
+        username_dest[..username_copy_len].copy_from_slice(&username_bytes[..username_copy_len]);
 
         /*
          * copy email
@@ -44,7 +45,8 @@ impl Row {
         let email_dst = &mut destination[EMAIL_OFFSET..EMAIL_OFFSET + EMAIL_SIZE];
 
         email_dst.fill(0);
-        email_dst[..email_bytes.len()].copy_from_slice(email_bytes);
+        let email_copy_len = email_bytes.len().min(EMAIL_SIZE);
+        email_dst[..email_copy_len].copy_from_slice(&email_bytes[..email_copy_len]);
     }
 
     pub fn ingest_deserialized(&mut self, source: &[u8]) {
@@ -73,5 +75,91 @@ impl Row {
         self.id = id;
         self.username = username;
         self.email = email;
+    }
+}
+
+/*
+*
+* TESTS
+* ***/
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serialize_deserialize_roundtrip() {
+        let row = Row {
+            id: 42,
+            username: "testuser".to_string(),
+            email: "test@example.com".to_string(),
+        };
+
+        let mut buffer = vec![0u8; ROW_SIZE];
+        row.serialize(&mut buffer);
+
+        let mut deserialized = Row::new();
+        deserialized.ingest_deserialized(&buffer);
+
+        assert_eq!(deserialized.id, row.id);
+        assert_eq!(deserialized.username, row.username);
+        assert_eq!(deserialized.email, row.email);
+    }
+
+    #[test]
+    fn test_serialize_empty_strings() {
+        let row = Row {
+            id: 1,
+            username: "".to_string(),
+            email: "".to_string(),
+        };
+
+        let mut buffer = vec![0u8; ROW_SIZE];
+        row.serialize(&mut buffer);
+
+        let mut deserialized = Row::new();
+        deserialized.ingest_deserialized(&buffer);
+
+        assert_eq!(deserialized.id, 1);
+        assert_eq!(deserialized.username, "");
+        assert_eq!(deserialized.email, "");
+    }
+
+    #[test]
+    fn test_serialize_max_length_strings() {
+        let row = Row {
+            id: 1,
+            username: "a".repeat(USERNAME_SIZE),
+            email: "b".repeat(EMAIL_SIZE),
+        };
+
+        let mut buffer = vec![0u8; ROW_SIZE];
+        row.serialize(&mut buffer);
+
+        let mut deserialized = Row::new();
+        deserialized.ingest_deserialized(&buffer);
+
+        assert_eq!(deserialized.username.len(), USERNAME_SIZE);
+        assert_eq!(deserialized.email.len(), EMAIL_SIZE);
+    }
+
+    #[test]
+    fn test_serialize_truncates_long_strings() {
+        let long_username = "a".repeat(100);
+        let long_email = "b".repeat(500);
+
+        let row = Row {
+            id: 1,
+            username: long_username.clone(),
+            email: long_email.clone(),
+        };
+
+        let mut buffer = vec![0u8; ROW_SIZE];
+        row.serialize(&mut buffer);
+
+        let mut deserialized = Row::new();
+        deserialized.ingest_deserialized(&buffer);
+
+        assert_eq!(deserialized.username.len(), USERNAME_SIZE);
+        assert_eq!(deserialized.email.len(), EMAIL_SIZE);
     }
 }

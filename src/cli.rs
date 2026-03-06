@@ -29,7 +29,7 @@ fn exec_command(table: &mut Table, command: &str) {
 
         Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, table),
 
-        Err(_) => println!("Invalid command"),
+        Err(_) => println!("SINTAX ERROR: Unrecognized command '{}'", command),
     }
 }
 

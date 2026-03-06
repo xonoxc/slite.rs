@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{i32, str::FromStr};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MetaCmdRes {
     MetaRecognizedCommand,
     ExitCmd,
@@ -127,4 +127,90 @@ fn exec_select(table: &mut Table) -> ExecStatementRes {
     }
 
     ExecStatementRes::ExecSuccess
+}
+
+/*
+*
+* TESTS
+* ***/
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::input_buffer::InputBuffer;
+
+    #[test]
+    fn test_parse_insert_valid() {
+        let buffer = InputBuffer::from(".insert 1 testuser test@example.com".to_string());
+        let result = parse_statement(&buffer);
+
+        match result {
+            PrepareResult::PrepareSuccess { statement_type } => {
+                assert!(matches!(
+                    statement_type,
+                    StatementType::StatementInsert { row }
+                    if row.id == 1 && row.username == "testuser" && row.email == "test@example.com"
+                ));
+            }
+            _ => panic!("Expected PrepareSuccess"),
+        }
+    }
+
+    #[test]
+    fn test_parse_select() {
+        let buffer = InputBuffer::from(".select".to_string());
+        let result = parse_statement(&buffer);
+
+        match result {
+            PrepareResult::PrepareSuccess { statement_type } => {
+                assert!(matches!(statement_type, StatementType::StatementSelect));
+            }
+            _ => panic!("Expected PrepareSuccess"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_statement() {
+        let buffer = InputBuffer::from("invalid command".to_string());
+        let result = parse_statement(&buffer);
+
+        assert!(matches!(
+            result,
+            PrepareResult::PrepareUnrecognizedStatement
+        ));
+    }
+
+    #[test]
+    fn test_parse_insert_invalid_id() {
+        let buffer = InputBuffer::from(".insert abc testuser test@example.com".to_string());
+        let result = parse_statement(&buffer);
+
+        assert!(matches!(
+            result,
+            PrepareResult::PrepareUnrecognizedStatement
+        ));
+    }
+
+    #[test]
+    fn test_parse_insert_missing_args() {
+        let buffer = InputBuffer::from(".insert 1 testuser".to_string());
+        let result = parse_statement(&buffer);
+
+        assert!(matches!(
+            result,
+            PrepareResult::PrepareUnrecognizedStatement
+        ));
+    }
+
+    #[test]
+    fn test_meta_command_exit() {
+        let result = "_exit".parse::<MetaCmdRes>();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), MetaCmdRes::ExitCmd);
+    }
+
+    #[test]
+    fn test_meta_command_unrecognized() {
+        let result = "random".parse::<MetaCmdRes>();
+        assert!(result.is_err());
+    }
 }

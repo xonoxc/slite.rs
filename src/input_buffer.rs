@@ -10,6 +10,10 @@ impl InputBuffer {
         }
     }
 
+    pub fn from(buffer: String) -> Self {
+        Self { buffer }
+    }
+
     pub fn clear(&mut self) {
         self.buffer.clear();
     }
