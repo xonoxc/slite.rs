@@ -1,6 +1,12 @@
-use std::fs::File;
+use std::{
+    fs::File,
+    io::{Read, Seek},
+};
 
-use crate::{data::table::PAGE_SIZE, errors::PagerError};
+use crate::{
+    data::table::{PAGE_SIZE, TABLE_MAX_PAGES},
+    errors::PagerError,
+};
 
 #[derive(Debug)]
 pub struct Pager {
@@ -24,16 +30,48 @@ impl Pager {
     }
 
     pub fn get_page(&mut self, page_num: usize) -> Result<&mut [u8; PAGE_SIZE], PagerError> {
-        let page = self
-            .pages
-            .get_mut(page_num)
+        if page_num >= TABLE_MAX_PAGES {
+            return Err(PagerError::OutBoundSeek {
+                page: page_num,
+                max_allowed_pages: TABLE_MAX_PAGES,
+            });
+        }
+
+        if page_num >= self.pages.len() {
+            self.pages.resize(page_num + 1, None);
+        }
+
+        if self.pages[page_num].is_none() {
+            let i64_page_size = PAGE_SIZE as u64;
+
+            let mut number_of_pages = self.file_length / i64_page_size;
+
+            if (self.file_length % i64_page_size) > 0 {
+                number_of_pages += 1
+            }
+
+            if (page_num as u64) < number_of_pages {
+                let page_offset = (page_num as u64) * PAGE_SIZE as u64;
+
+                self.file
+                    .seek(std::io::SeekFrom::Start(page_offset))
+                    .expect("cannot seek page offset");
+
+                let mut page_buf = [0u8; PAGE_SIZE];
+
+                self.file
+                    .read_exact(&mut page_buf)
+                    .expect("error reading page from file");
+
+                self.pages[page_num] = Some(page_buf);
+            }
+        }
+
+        let page = self.pages[page_num]
+            .as_mut()
             .ok_or(PagerError::PageNotFound {
                 page_seeked: page_num,
             })?;
-
-        let page = page.as_mut().ok_or(PagerError::PageNotFound {
-            page_seeked: page_num,
-        })?;
 
         Ok(page)
     }
