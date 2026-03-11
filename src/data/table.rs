@@ -1,4 +1,4 @@
-use crate::data::row::ROW_SIZE;
+use crate::{data::row::ROW_SIZE, errors::PagerError, pager::Pager};
 
 pub const PAGE_SIZE: usize = 4096;
 pub const TABLE_MAX_PAGES: usize = 100;
@@ -9,33 +9,38 @@ pub const TABLE_MAX_ROWS: usize = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 #[derive(Debug)]
 pub struct Table {
     pub rows: usize,
-    pub pages: Vec<Option<[u8; PAGE_SIZE]>>,
+    pub pager: Pager,
 }
 
 impl Table {
-    pub fn new() -> Self {
+    /*
+     * now the constructor will do some
+     * more things
+     * **/
+    pub fn new(db_file_path: &str) -> Self {
         Self {
             rows: 0,
-            pages: vec![None; TABLE_MAX_PAGES],
+            pager: Pager::new(db_file_path),
         }
     }
 
-    pub fn get_row_slot(&mut self, row_num: usize) -> &mut [u8] {
+    pub fn get_row_slot(&mut self, row_num: usize) -> Result<&mut [u8], PagerError> {
         let page_num = row_num / ROWS_PER_PAGE;
 
-        if self.pages[page_num].is_none() {
-            self.pages[page_num] = Some([0; PAGE_SIZE]);
+        if let Err(PagerError::PageNotFound { .. }) = self.pager.get_page(page_num) {
+            self.pager.allocate_page(page_num);
         }
 
-        let page = self.pages[page_num].as_mut().unwrap();
+        let page = self.pager.get_page(page_num)?;
 
         let row_offset = row_num % ROWS_PER_PAGE;
         let byte_offset = row_offset * ROW_SIZE;
 
-        &mut page[byte_offset..byte_offset + ROW_SIZE]
+        Ok(&mut page[byte_offset..byte_offset + ROW_SIZE])
     }
 }
 
+pub const DB_FILE_PATH: &'static str = "test.db";
 /*
 *
 * TESTS
@@ -47,32 +52,38 @@ mod tests {
 
     #[test]
     fn test_table_new() {
-        let table = Table::new();
+        let table = Table::new(DB_FILE_PATH);
         assert_eq!(table.rows, 0);
     }
 
     #[test]
     fn test_get_row_slot() {
-        let mut table = Table::new();
-        let slot = table.get_row_slot(0);
+        let mut table = Table::new(DB_FILE_PATH);
+        let slot = table.get_row_slot(0).unwrap_or_else(|e| {
+            panic!("error accessing slot: {}", e);
+        });
         assert_eq!(slot.len(), ROW_SIZE);
     }
 
     #[test]
     fn test_insert_and_retrieve_row() {
-        let mut table = Table::new();
+        let mut table = Table::new(DB_FILE_PATH);
         let row = Row {
             id: 1,
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
         };
 
-        let slot = table.get_row_slot(0);
+        let slot = table.get_row_slot(0).unwrap_or_else(|e| {
+            panic!("error accessing slot: {}", e);
+        });
         row.serialize(slot);
         table.rows = 1;
 
         let mut retrieved = Row::new();
-        let slot = table.get_row_slot(0);
+        let slot = table.get_row_slot(0).unwrap_or_else(|e| {
+            panic!("error accessing slot: {}", e);
+        });
         retrieved.ingest_deserialized(slot);
 
         assert_eq!(retrieved.id, 1);
@@ -82,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_insert_multiple_rows() {
-        let mut table = Table::new();
+        let mut table = Table::new(DB_FILE_PATH);
 
         for i in 0..5 {
             let row = Row {
@@ -90,7 +101,9 @@ mod tests {
                 username: format!("user{}", i),
                 email: format!("user{}@example.com", i),
             };
-            let slot = table.get_row_slot(i);
+            let slot = table.get_row_slot(i).unwrap_or_else(|e| {
+                panic!("error accessing slot: {}", e);
+            });
             row.serialize(slot);
             table.rows += 1;
         }
@@ -99,7 +112,9 @@ mod tests {
 
         for i in 0..5 {
             let mut retrieved = Row::new();
-            let slot = table.get_row_slot(i);
+            let slot = table.get_row_slot(i).unwrap_or_else(|e| {
+                panic!("error accessing slot: {}", e);
+            });
             retrieved.ingest_deserialized(slot);
             assert_eq!(retrieved.id, i as i32);
         }
@@ -107,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_table_max_rows_limit() {
-        let mut table = Table::new();
+        let mut table = Table::new(DB_FILE_PATH);
 
         for i in 0..TABLE_MAX_ROWS {
             let row = Row {
@@ -115,7 +130,9 @@ mod tests {
                 username: format!("user{}", i),
                 email: format!("user{}@example.com", i),
             };
-            let slot = table.get_row_slot(i);
+            let slot = table.get_row_slot(i).unwrap_or_else(|e| {
+                panic!("error accessing slot: {}", e);
+            });
             row.serialize(slot);
             table.rows += 1;
         }

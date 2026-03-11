@@ -97,20 +97,28 @@ pub fn exec_statement(statement_type: StatementType, table: &mut Table) {
     };
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExecStatementRes {
     ExecSuccess,
-    ExecFailure { cause: &'static str },
+    ExecFailure { cause: String },
 }
 
 fn exec_insert(row: &Row, table: &mut Table) -> ExecStatementRes {
     if table.rows >= TABLE_MAX_ROWS {
         return ExecStatementRes::ExecFailure {
-            cause: "table full",
+            cause: "table full".to_string(),
         };
     }
 
-    let slot = table.get_row_slot(table.rows);
+    let slot = match table.get_row_slot(table.rows) {
+        Ok(v) => v,
+        Err(e) => {
+            return ExecStatementRes::ExecFailure {
+                cause: e.to_string(),
+            };
+        }
+    };
+
     row.serialize(slot);
     table.rows += 1;
 
@@ -121,8 +129,16 @@ fn exec_select(table: &mut Table) -> ExecStatementRes {
     let mut row = Row::new();
 
     for i in 0..table.rows {
-        let slot = table.get_row_slot(i);
+        let slot = match table.get_row_slot(i) {
+            Ok(v) => v,
+            Err(e) => {
+                return ExecStatementRes::ExecFailure {
+                    cause: e.to_string(),
+                };
+            }
+        };
         row.ingest_deserialized(slot.as_ref());
+
         println!("{:?}", row)
     }
 

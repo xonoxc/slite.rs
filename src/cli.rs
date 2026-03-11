@@ -9,10 +9,11 @@ use crate::statements::{MetaCmdRes, exec_statement};
 pub fn run() {
     println!("Welcome to slite-rs CLI:");
 
-    let mut main_table = Table::new();
+    let db_file_path = String::from("sample.db");
+
+    let mut main_table = Table::new(&db_file_path);
 
     let mut command = InputBuffer::new();
-
     loop {
         next_prompt();
         exec_command(&mut main_table, read_prompt(&mut command).buffer.trim())
