@@ -4,7 +4,7 @@ use std::process::{self};
 use crate::cmd::CLIcommand;
 use crate::data::table::Table;
 use crate::input_buffer::InputBuffer;
-use crate::statements::{MetaCmdRes, exec_statement};
+use crate::statements::{ExecStatementRes, MetaCmdRes, exec_statement};
 
 pub fn run() {
     println!("Welcome to slite-rs CLI:");
@@ -14,23 +14,35 @@ pub fn run() {
     let mut main_table = Table::new(&db_file_path);
 
     let mut command = InputBuffer::new();
+
     loop {
         next_prompt();
-        exec_command(&mut main_table, read_prompt(&mut command).buffer.trim())
+        match exec_command(&mut main_table, read_prompt(&mut command).buffer.trim()) {
+            ExecStatementRes::ExecFailure { cause } => {
+                println!("Error executing command: {}", cause);
+            }
+            ExecStatementRes::ExecExit => break,
+            ExecStatementRes::ExecSuccess => {
+                println!("Command executed successfully!");
+            }
+        }
     }
 }
 
-fn exec_command(table: &mut Table, command: &str) {
+fn exec_command(table: &mut Table, command: &str) -> ExecStatementRes {
     match command.parse::<CLIcommand>() {
-        Ok(CLIcommand::Meta(MetaCmdRes::ExitCmd)) => process::exit(0),
+        Ok(CLIcommand::Meta(MetaCmdRes::ExitCmd)) => ExecStatementRes::ExecExit,
 
         Ok(CLIcommand::Meta(_)) => {
-            println!("executing meta command!")
+            println!("executing meta command!");
+            ExecStatementRes::ExecSuccess
         }
 
         Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, table),
 
-        Err(_) => println!("SINTAX ERROR: Unrecognized command '{}'", command),
+        Err(_) => ExecStatementRes::ExecFailure {
+            cause: "SINTAX ERROR: Unrecognized command".to_string(),
+        },
     }
 }
 

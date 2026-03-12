@@ -1,6 +1,6 @@
 use std::{
-    fs::File,
-    io::{Read, Seek},
+    fs::{File, OpenOptions},
+    io::{Read, Seek, Write},
 };
 
 use crate::{
@@ -17,7 +17,11 @@ pub struct Pager {
 
 impl Pager {
     pub fn new(db_file_path: &str) -> Self {
-        let file = File::open(db_file_path)
+        let file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(db_file_path)
             .expect("failed to open database file. Please make sure it exists..");
 
         let file_length = file.metadata().unwrap().len();
@@ -51,19 +55,9 @@ impl Pager {
             }
 
             if (page_num as u64) < number_of_pages {
-                let page_offset = (page_num as u64) * PAGE_SIZE as u64;
+                self.seek_file_to_offset(self.get_offset(page_num));
 
-                self.file
-                    .seek(std::io::SeekFrom::Start(page_offset))
-                    .expect("cannot seek page offset");
-
-                let mut page_buf = [0u8; PAGE_SIZE];
-
-                self.file
-                    .read_exact(&mut page_buf)
-                    .expect("error reading page from file");
-
-                self.pages[page_num] = Some(page_buf);
+                self.pages[page_num] = Some(self.read_into_buffer());
             }
         }
 
@@ -82,5 +76,44 @@ impl Pager {
         }
 
         self.pages[page_num] = Some([0; PAGE_SIZE])
+    }
+
+    pub fn flush(&mut self, page_num: usize) -> Result<(), PagerError> {
+        self.seek_file_to_offset(self.get_offset(page_num));
+
+        let page = match self.pages.get_mut(page_num) {
+            Some(Some(page)) => page,
+            _ => return Err(PagerError::FlushError { page_num }),
+        };
+
+        self.file
+            .write_all(page)
+            .map_err(|_| PagerError::FlushError { page_num })?;
+
+        self.file
+            .sync_all()
+            .map_err(|_| PagerError::FlushError { page_num })?;
+
+        Ok(())
+    }
+
+    fn get_offset(&self, page_num: usize) -> u64 {
+        (page_num as u64) * (PAGE_SIZE as u64)
+    }
+
+    fn seek_file_to_offset(&mut self, offset: u64) {
+        self.file
+            .seek(std::io::SeekFrom::Start(offset))
+            .expect("cannot seek page offset");
+    }
+
+    fn read_into_buffer(&mut self) -> [u8; PAGE_SIZE] {
+        let mut page_buf = [0u8; PAGE_SIZE];
+
+        self.file
+            .read_exact(&mut page_buf)
+            .expect("error reading page from file");
+
+        page_buf
     }
 }

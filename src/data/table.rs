@@ -139,4 +139,139 @@ mod tests {
 
         assert_eq!(table.rows, TABLE_MAX_ROWS);
     }
+
+    #[test]
+    fn test_flush_writes_to_disk() {
+        let test_file = "test_flush.db";
+        let _ = std::fs::remove_file(test_file);
+
+        let mut table = Table::new(test_file);
+        let row = Row {
+            id: 42,
+            username: "flushuser".to_string(),
+            email: "flush@test.com".to_string(),
+        };
+
+        let slot = table.get_row_slot(0).unwrap();
+        row.serialize(slot);
+        table.rows = 1;
+
+        table.pager.flush(0).expect("flush should succeed");
+
+        drop(table);
+
+        let file_data = std::fs::read(test_file).expect("should read file");
+        assert!(file_data.len() > 0, "file should have data");
+
+        let _ = std::fs::remove_file(test_file);
+    }
+
+    #[test]
+    fn test_flush_nonexistent_page_returns_error() {
+        let test_file = "test_flush_error.db";
+        let _ = std::fs::remove_file(test_file);
+
+        let mut table = Table::new(test_file);
+        let result = table.pager.flush(99);
+
+        assert!(result.is_err());
+        if let Err(PagerError::FlushError { page_num }) = result {
+            assert_eq!(page_num, 99);
+        } else {
+            panic!("expected FlushError");
+        }
+
+        let _ = std::fs::remove_file(test_file);
+    }
+
+    #[test]
+    fn test_table_drop_flushes_to_disk() {
+        let test_file = "test_drop_flush.db";
+        let _ = std::fs::remove_file(test_file);
+
+        {
+            let mut table = Table::new(test_file);
+            let row = Row {
+                id: 100,
+                username: "dropuser".to_string(),
+                email: "drop@test.com".to_string(),
+            };
+
+            let slot = table.get_row_slot(0).unwrap();
+            row.serialize(slot);
+            table.rows = 1;
+        }
+
+        let file_data = std::fs::read(test_file).expect("should read file after drop");
+        assert!(
+            file_data.len() >= PAGE_SIZE,
+            "file should have at least one page"
+        );
+
+        let _ = std::fs::remove_file(test_file);
+    }
+
+    #[test]
+    fn test_persistence_after_recreate() {
+        let test_file = "test_persist.db";
+        let _ = std::fs::remove_file(test_file);
+
+        {
+            let mut table = Table::new(test_file);
+            for i in 0..3 {
+                let row = Row {
+                    id: i as i32 + 1,
+                    username: format!("user{}", i),
+                    email: format!("user{}@example.com", i),
+                };
+                let slot = table.get_row_slot(i).unwrap();
+                row.serialize(slot);
+            }
+            table.rows = 3;
+        }
+
+        {
+            let mut table = Table::new(test_file);
+            for i in 0..3 {
+                let mut retrieved = Row::new();
+                let slot = table.get_row_slot(i).unwrap();
+                retrieved.ingest_deserialized(slot);
+                assert_eq!(retrieved.id, i as i32 + 1);
+                assert_eq!(retrieved.username, format!("user{}", i));
+            }
+        }
+
+        let _ = std::fs::remove_file(test_file);
+    }
+}
+
+/*
+*
+* this is to write all pages to disk when pager goes out
+*  of scope
+* **/
+impl Drop for Table {
+    fn drop(&mut self) {
+        let total_pages = self.pager.pages.len();
+
+        for page in 0..total_pages {
+            if self.pager.pages[page].is_some() {
+                if let Err(e) = self.pager.flush(page) {
+                    eprintln!("Failed to auto-flush page {}: {:?}", page, e);
+                }
+            }
+        }
+
+        /*
+         * partial page handling at the end
+         * **/
+        let additional_rows = self.rows % ROWS_PER_PAGE;
+        if additional_rows > 0 {
+            if self.pager.get_page(total_pages).is_ok() {
+                if let Err(e) = self.pager.flush(additional_rows) {
+                    eprintln!("Failed to auto-flush addtional_rows : {:?}", e);
+                }
+            }
+        }
+    }
 }

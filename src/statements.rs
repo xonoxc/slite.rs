@@ -1,7 +1,7 @@
 use crate::{
     data::{
         row::Row,
-        table::{TABLE_MAX_ROWS, Table},
+        table::{ROWS_PER_PAGE, TABLE_MAX_ROWS, Table},
     },
     input_buffer::InputBuffer,
 };
@@ -85,22 +85,20 @@ pub fn parse_statement(buffer: &InputBuffer) -> PrepareResult {
     }
 }
 
-pub fn exec_statement(statement_type: StatementType, table: &mut Table) {
+pub fn exec_statement(statement_type: StatementType, table: &mut Table) -> ExecStatementRes {
     let excution_res = match statement_type {
         StatementType::StatementInsert { ref row } => exec_insert(&row, table),
         StatementType::StatementSelect => exec_select(table),
     };
 
-    match excution_res {
-        ExecStatementRes::ExecFailure { cause } => println!("Excution failed :: {}", cause),
-        ExecStatementRes::ExecSuccess => println!("Operation success!!"),
-    };
+    excution_res
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExecStatementRes {
     ExecSuccess,
     ExecFailure { cause: String },
+    ExecExit,
 }
 
 fn exec_insert(row: &Row, table: &mut Table) -> ExecStatementRes {
