@@ -1,7 +1,7 @@
 use crate::{
     data::{
         row::Row,
-        table::{ROWS_PER_PAGE, TABLE_MAX_ROWS, Table},
+        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, TABLE_MAX_ROWS, Table},
     },
     input_buffer::InputBuffer,
 };
@@ -36,19 +36,40 @@ pub enum StatementType {
 }
 
 impl FromStr for StatementType {
-    type Err = ();
+    type Err = PrepareResult;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.trim().split_whitespace();
 
-        let command = parts.next().ok_or(())?;
+        let command = parts.next().ok_or(PrepareResult::PrepareSyntaxError {
+            cause: "unable to parse command".to_string(),
+        })?;
+
         match command {
             ".insert" => {
                 let args: Vec<&str> = parts.collect();
 
                 match args.as_slice() {
                     [id_str, username, email] => {
-                        let id = id_str.parse::<i32>().map_err(|_| ())?;
+                        let id = id_str
+                            .parse::<i32>()
+                            .map_err(|_| PrepareResult::IdParseErr)?;
+
+                        if id < 0 {
+                            return Err(PrepareResult::PrepareNegativeId);
+                        }
+
+                        if email.len() > MAX_EMAIL_SIZE {
+                            return Err(PrepareResult::PrepareStringTooLong {
+                                cause: "email string too long".to_string(),
+                            });
+                        }
+
+                        if username.len() > MAX_USERNAME_SIZE {
+                            return Err(PrepareResult::PrepareStringTooLong {
+                                cause: "username too long".to_string(),
+                            });
+                        }
 
                         Ok(StatementType::StatementInsert {
                             row: Row {
@@ -58,11 +79,13 @@ impl FromStr for StatementType {
                             },
                         })
                     }
-                    _ => Err(()),
+                    _ => Err(PrepareResult::PrepareSyntaxError {
+                        cause: "expected .insert <id> <username> <email>".to_string(),
+                    }),
                 }
             }
             ".select" => Ok(StatementType::StatementSelect),
-            _ => Err(()),
+            _ => Err(PrepareResult::PrepareUnrecognizedStatement),
         }
     }
 }
@@ -71,6 +94,10 @@ impl FromStr for StatementType {
 pub enum PrepareResult {
     PrepareSuccess { statement_type: StatementType },
     PrepareUnrecognizedStatement,
+    PrepareSyntaxError { cause: String },
+    PrepareStringTooLong { cause: String },
+    PrepareNegativeId,
+    IdParseErr,
 }
 
 #[derive(Debug)]

@@ -6,6 +6,9 @@ pub const TABLE_MAX_PAGES: usize = 100;
 pub const ROWS_PER_PAGE: usize = PAGE_SIZE / ROW_SIZE;
 pub const TABLE_MAX_ROWS: usize = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 
+pub const MAX_USERNAME_SIZE: usize = 32;
+pub const MAX_EMAIL_SIZE: usize = 32;
+
 #[derive(Debug)]
 pub struct Table {
     pub rows: usize,
