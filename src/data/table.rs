@@ -21,10 +21,10 @@ impl Table {
      * more things
      * **/
     pub fn new(db_file_path: &str) -> Self {
-        Self {
-            rows: 0,
-            pager: Pager::new(db_file_path),
-        }
+        let pager = Pager::new(db_file_path);
+        let rows = pager.file_length as usize / ROW_SIZE;
+
+        Self { rows, pager }
     }
 
     pub fn get_row_slot(&mut self, row_num: usize) -> Result<&mut [u8], PagerError> {
@@ -271,7 +271,7 @@ impl Drop for Table {
         let additional_rows = self.rows % ROWS_PER_PAGE;
         if additional_rows > 0 {
             if self.pager.get_page(total_pages).is_ok() {
-                if let Err(e) = self.pager.flush(additional_rows) {
+                if let Err(e) = self.pager.flush(total_pages) {
                     eprintln!("Failed to auto-flush addtional_rows : {:?}", e);
                 }
             }
