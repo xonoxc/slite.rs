@@ -74,7 +74,7 @@ fn exect_meta_cmd(meta_cmd: MetaCmdRes) -> ExecStatementRes {
 }
 
 fn next_prompt() {
-    print!("> ");
+    print!(" > ");
     io::stdout()
         .flush()
         .expect("failed to flush next prompt ANSI escape codes");
