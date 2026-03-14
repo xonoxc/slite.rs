@@ -1,30 +1,52 @@
+use std::env;
 use std::io::{self, Write};
-use std::process::{self};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use signal_hook::consts::{SIGINT, SIGTERM};
+use signal_hook::flag;
 
 use crate::cmd::CLIcommand;
 use crate::data::table::Table;
+use crate::errors::ParseError;
 use crate::input_buffer::InputBuffer;
 use crate::statements::{ExecStatementRes, MetaCmdRes, exec_statement};
 
 pub fn run() {
     println!("Welcome to slite-rs CLI:");
 
-    let db_file_path = String::from("sample.db");
+    let shutdown = setup_interrupt_listeners();
 
-    let mut main_table = Table::new(&db_file_path);
+    let mut main_table = Table::new(&get_db_file_name().unwrap());
 
     let mut command = InputBuffer::new();
 
     loop {
+        if shutdown.load(Ordering::Relaxed) {
+            println!("\nshutting down...");
+            break;
+        }
+        /*
+         * next prompt >
+         * */
         next_prompt();
-        match exec_command(&mut main_table, read_prompt(&mut command).buffer.trim()) {
+
+        /*
+         * read prompt
+         * **/
+        let read_prompt = read_prompt(&mut command);
+
+        let input_buffer = match read_prompt {
+            Some(v) => v,
+            None => continue,
+        };
+
+        match exec_command(&mut main_table, input_buffer.buffer.trim()) {
             ExecStatementRes::ExecFailure { cause } => {
                 println!("Error executing command: {}", cause);
             }
             ExecStatementRes::ExecExit => break,
-            ExecStatementRes::ExecSuccess => {
-                println!("Command executed successfully!");
-            }
+            ExecStatementRes::ExecSuccess => {}
         }
     }
 }
@@ -51,16 +73,53 @@ fn next_prompt() {
     io::stdout().flush().expect("Failed to flush prompt");
 }
 
-fn read_prompt(input_buffer: &mut InputBuffer) -> &InputBuffer {
+fn read_prompt(input_buffer: &mut InputBuffer) -> Option<&InputBuffer> {
     input_buffer.clear();
 
-    let bytes_read = io::stdin()
-        .read_line(&mut input_buffer.buffer)
-        .expect("failed to read command");
+    let bytes_read = match io::stdin().read_line(&mut input_buffer.buffer) {
+        Ok(0) => return None,
+        Ok(bytes) => bytes,
+        Err(e) => {
+            if e.kind() == io::ErrorKind::Interrupted {
+                return None;
+            }
+            return None;
+        }
+    };
 
     if bytes_read == 0 {
-        process::exit(1);
+        return None;
     }
 
-    input_buffer
+    Some(input_buffer)
+}
+
+fn get_db_file_name() -> Result<String, ParseError> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        return Err(ParseError::ArgsPassError {
+            arg: "db filename not provided",
+        });
+    }
+
+    let db_file_path = String::from(&args[1]);
+
+    Ok(db_file_path)
+}
+
+/*
+*
+* setup an infinite SIGINT and SIGTERM listener
+* on the other thead using a shared pointer where shudown clone(another refrenece to the same
+* atomic value) get's updated on the other thread and you get the bool on the main one.
+* **/
+fn setup_interrupt_listeners() -> Arc<AtomicBool> {
+    let shutdown = Arc::new(AtomicBool::new(false));
+
+    flag::register(SIGINT, shutdown.clone()).unwrap();
+    flag::register(SIGTERM, shutdown.clone()).unwrap();
+
+    flag::register_conditional_shutdown(SIGINT, 1, shutdown.clone()).unwrap();
+
+    shutdown
 }

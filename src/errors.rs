@@ -14,3 +14,9 @@ pub enum PagerError {
     #[error("error flushing data to the disk for page {page_num}")]
     FlushError { page_num: usize },
 }
+
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error("error parsing arguement {arg}")]
+    ArgsPassError { arg: &'static str },
+}

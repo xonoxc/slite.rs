@@ -42,7 +42,7 @@ impl FromStr for StatementType {
         let mut parts = s.trim().split_whitespace();
 
         let command = parts.next().ok_or(PrepareResult::PrepareSyntaxError {
-            cause: "unable to parse command".to_string(),
+            cause: "unable to parse command",
         })?;
 
         match command {
@@ -61,13 +61,13 @@ impl FromStr for StatementType {
 
                         if email.len() > MAX_EMAIL_SIZE {
                             return Err(PrepareResult::PrepareStringTooLong {
-                                cause: "email string too long".to_string(),
+                                cause: "email string too long",
                             });
                         }
 
                         if username.len() > MAX_USERNAME_SIZE {
                             return Err(PrepareResult::PrepareStringTooLong {
-                                cause: "username too long".to_string(),
+                                cause: "username too long",
                             });
                         }
 
@@ -80,7 +80,7 @@ impl FromStr for StatementType {
                         })
                     }
                     _ => Err(PrepareResult::PrepareSyntaxError {
-                        cause: "expected .insert <id> <username> <email>".to_string(),
+                        cause: "expected .insert <id> <username> <email>",
                     }),
                 }
             }
@@ -94,8 +94,8 @@ impl FromStr for StatementType {
 pub enum PrepareResult {
     PrepareSuccess { statement_type: StatementType },
     PrepareUnrecognizedStatement,
-    PrepareSyntaxError { cause: String },
-    PrepareStringTooLong { cause: String },
+    PrepareSyntaxError { cause: &'static str },
+    PrepareStringTooLong { cause: &'static str },
     PrepareNegativeId,
     IdParseErr,
 }
