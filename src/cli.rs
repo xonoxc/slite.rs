@@ -1,7 +1,8 @@
-use std::env;
-use std::io::{self, Write};
-use std::sync::Arc;
+use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, mpsc};
+use std::{env, thread};
 
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::flag;
@@ -16,38 +17,35 @@ pub fn run() {
     println!("Welcome to slite-rs CLI:");
 
     let shutdown = setup_interrupt_listeners();
-
     let mut main_table = Table::new(&get_db_file_name().unwrap());
 
-    let mut command = InputBuffer::new();
+    let (sender_end, reciver_end) = mpsc::channel::<InputBuffer>();
+
+    spawn_input_thead(sender_end);
+
+    next_prompt();
 
     loop {
         if shutdown.load(Ordering::Relaxed) {
             println!("\nshutting down...");
             break;
         }
-        /*
-         * next prompt >
-         * */
-        next_prompt();
 
-        /*
-         * read prompt
-         * **/
-        let read_prompt = read_prompt(&mut command);
+        match reciver_end.recv_timeout(std::time::Duration::from_millis(100)) {
+            Ok(buffer) => {
+                match exec_command(&mut main_table, buffer.buffer.trim()) {
+                    ExecStatementRes::ExecFailure { cause } => {
+                        println!("Error executing command: {}", cause);
+                    }
+                    ExecStatementRes::ExecExit => break,
+                    ExecStatementRes::ExecSuccess => {}
+                }
 
-        let input_buffer = match read_prompt {
-            Some(v) => v,
-            None => continue,
-        };
-
-        match exec_command(&mut main_table, input_buffer.buffer.trim()) {
-            ExecStatementRes::ExecFailure { cause } => {
-                println!("Error executing command: {}", cause);
+                next_prompt();
             }
-            ExecStatementRes::ExecExit => break,
-            ExecStatementRes::ExecSuccess => {}
-        }
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(_) => break,
+        };
     }
 }
 
@@ -80,25 +78,23 @@ fn next_prompt() {
         .expect("failed to flush next prompt ANSI escape codes");
 }
 
-fn read_prompt(input_buffer: &mut InputBuffer) -> Option<&InputBuffer> {
-    input_buffer.clear();
+fn spawn_input_thead(sender_end: Sender<InputBuffer>) {
+    thread::spawn(move || {
+        let stdin = io::stdin();
+        let mut handle = stdin.lock();
 
-    let bytes_read = match io::stdin().read_line(&mut input_buffer.buffer) {
-        Ok(0) => return None,
-        Ok(bytes) => bytes,
-        Err(e) => {
-            if e.kind() == io::ErrorKind::Interrupted {
-                return None;
+        loop {
+            let mut command = InputBuffer::new();
+
+            if handle.read_line(&mut command.buffer).is_err() {
+                continue;
             }
-            return None;
+
+            if sender_end.send(command).is_err() {
+                break;
+            }
         }
-    };
-
-    if bytes_read == 0 {
-        return None;
-    }
-
-    Some(input_buffer)
+    });
 }
 
 fn get_db_file_name() -> Result<String, ParseError> {
@@ -125,8 +121,6 @@ fn setup_interrupt_listeners() -> Arc<AtomicBool> {
 
     flag::register(SIGINT, shutdown.clone()).unwrap();
     flag::register(SIGTERM, shutdown.clone()).unwrap();
-
-    flag::register_conditional_shutdown(SIGINT, 1, shutdown.clone()).unwrap();
 
     shutdown
 }
