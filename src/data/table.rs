@@ -55,6 +55,7 @@ mod tests {
 
     #[test]
     fn test_table_new() {
+        let _ = std::fs::remove_file(DB_FILE_PATH);
         let table = Table::new(DB_FILE_PATH);
         assert_eq!(table.rows, 0);
     }
@@ -96,6 +97,7 @@ mod tests {
 
     #[test]
     fn test_insert_multiple_rows() {
+        let _ = std::fs::remove_file(DB_FILE_PATH);
         let mut table = Table::new(DB_FILE_PATH);
 
         for i in 0..5 {
@@ -125,6 +127,7 @@ mod tests {
 
     #[test]
     fn test_table_max_rows_limit() {
+        let _ = std::fs::remove_file(DB_FILE_PATH);
         let mut table = Table::new(DB_FILE_PATH);
 
         for i in 0..TABLE_MAX_ROWS {
