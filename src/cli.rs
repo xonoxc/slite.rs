@@ -90,6 +90,10 @@ fn spawn_input_thead(sender_end: Sender<InputBuffer>) {
                 continue;
             }
 
+            if command.buffer.trim().is_empty() {
+                continue;
+            }
+
             if sender_end.send(command).is_err() {
                 break;
             }
