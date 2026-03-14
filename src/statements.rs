@@ -7,10 +7,13 @@ use crate::{
 };
 use std::{i32, str::FromStr};
 
+use std::io::{self, Write};
+
 #[derive(Debug, PartialEq)]
 pub enum MetaCmdRes {
     MetaRecognizedCommand,
     ExitCmd,
+    MetaCmdClear,
     UnrecognizedCommand,
 }
 
@@ -22,11 +25,11 @@ impl FromStr for MetaCmdRes {
             return Err(());
         }
 
-        if s == "_exit" {
-            return Ok(MetaCmdRes::ExitCmd);
+        match s {
+            "_exit" => return Ok(MetaCmdRes::ExitCmd),
+            "_cl" => return Ok(MetaCmdRes::MetaCmdClear),
+            _ => Ok(MetaCmdRes::MetaRecognizedCommand),
         }
-
-        Ok(MetaCmdRes::MetaRecognizedCommand)
     }
 }
 #[derive(Debug)]
@@ -170,6 +173,15 @@ fn exec_select(table: &mut Table) -> ExecStatementRes {
     ExecStatementRes::ExecSuccess
 }
 
+pub fn exec_clear() -> ExecStatementRes {
+    print!("\x1B[2J\x1B[H");
+    io::stdout()
+        .flush()
+        .expect("failed to flush clear screen ANSI escape codes");
+
+    ExecStatementRes::ExecSuccess
+}
+
 /*
 *
 * TESTS
@@ -247,6 +259,13 @@ mod tests {
         let result = "_exit".parse::<MetaCmdRes>();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), MetaCmdRes::ExitCmd);
+    }
+
+    #[test]
+    fn test_meta_command_clear() {
+        let result = "_cl".parse::<MetaCmdRes>();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), MetaCmdRes::MetaCmdClear);
     }
 
     #[test]

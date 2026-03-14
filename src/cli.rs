@@ -10,7 +10,7 @@ use crate::cmd::CLIcommand;
 use crate::data::table::Table;
 use crate::errors::ParseError;
 use crate::input_buffer::InputBuffer;
-use crate::statements::{ExecStatementRes, MetaCmdRes, exec_statement};
+use crate::statements::{ExecStatementRes, MetaCmdRes, exec_clear, exec_statement};
 
 pub fn run() {
     println!("Welcome to slite-rs CLI:");
@@ -53,12 +53,7 @@ pub fn run() {
 
 fn exec_command(table: &mut Table, command: &str) -> ExecStatementRes {
     match command.parse::<CLIcommand>() {
-        Ok(CLIcommand::Meta(MetaCmdRes::ExitCmd)) => ExecStatementRes::ExecExit,
-
-        Ok(CLIcommand::Meta(_)) => {
-            println!("executing meta command!");
-            ExecStatementRes::ExecSuccess
-        }
+        Ok(CLIcommand::Meta(cmd)) => exect_meta_cmd(cmd),
 
         Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, table),
 
@@ -68,9 +63,21 @@ fn exec_command(table: &mut Table, command: &str) -> ExecStatementRes {
     }
 }
 
+fn exect_meta_cmd(meta_cmd: MetaCmdRes) -> ExecStatementRes {
+    match meta_cmd {
+        MetaCmdRes::ExitCmd => ExecStatementRes::ExecExit,
+        MetaCmdRes::MetaCmdClear => exec_clear(),
+        _ => ExecStatementRes::ExecFailure {
+            cause: "Unrecognized meta cmd".to_string(),
+        },
+    }
+}
+
 fn next_prompt() {
     print!("> ");
-    io::stdout().flush().expect("Failed to flush prompt");
+    io::stdout()
+        .flush()
+        .expect("failed to flush next prompt ANSI escape codes");
 }
 
 fn read_prompt(input_buffer: &mut InputBuffer) -> Option<&InputBuffer> {
