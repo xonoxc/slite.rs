@@ -1,7 +1,8 @@
 use crate::{
+    cursor::Cursor,
     data::{
         row::Row,
-        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, TABLE_MAX_ROWS, Table},
+        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, TABLE_MAX_ROWS},
     },
     input_buffer::InputBuffer,
 };
@@ -115,10 +116,10 @@ pub fn parse_statement(buffer: &InputBuffer) -> PrepareResult {
     }
 }
 
-pub fn exec_statement(statement_type: StatementType, table: &mut Table) -> ExecStatementRes {
+pub fn exec_statement(statement_type: StatementType, cursor: &mut Cursor) -> ExecStatementRes {
     let excution_res = match statement_type {
-        StatementType::StatementInsert { ref row } => exec_insert(&row, table),
-        StatementType::StatementSelect => exec_select(table),
+        StatementType::StatementInsert { ref row } => exec_insert(&row, cursor),
+        StatementType::StatementSelect => exec_select(cursor),
     };
 
     excution_res
@@ -131,14 +132,14 @@ pub enum ExecStatementRes {
     ExecExit,
 }
 
-fn exec_insert(row: &Row, table: &mut Table) -> ExecStatementRes {
-    if table.rows >= TABLE_MAX_ROWS {
+fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
+    if cursor.table.rows >= TABLE_MAX_ROWS {
         return ExecStatementRes::ExecFailure {
             cause: "table full".to_string(),
         };
     }
 
-    let slot = match table.get_row_slot(table.rows) {
+    let slot = match cursor.curr_value() {
         Ok(v) => v,
         Err(e) => {
             return ExecStatementRes::ExecFailure {
@@ -148,16 +149,16 @@ fn exec_insert(row: &Row, table: &mut Table) -> ExecStatementRes {
     };
 
     row.serialize(slot);
-    table.rows += 1;
+    cursor.table.rows += 1;
 
     ExecStatementRes::ExecSuccess
 }
 
-fn exec_select(table: &mut Table) -> ExecStatementRes {
+fn exec_select(cursor: &mut Cursor) -> ExecStatementRes {
     let mut row = Row::new();
 
-    for i in 0..table.rows {
-        let slot = match table.get_row_slot(i) {
+    for _ in 0..cursor.table.rows {
+        let slot = match cursor.curr_value() {
             Ok(v) => v,
             Err(e) => {
                 return ExecStatementRes::ExecFailure {

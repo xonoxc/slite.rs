@@ -8,6 +8,7 @@ use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::flag;
 
 use crate::cmd::CLIcommand;
+use crate::cursor::Cursor;
 use crate::data::table::Table;
 use crate::errors::ParseError;
 use crate::input_buffer::InputBuffer;
@@ -18,11 +19,11 @@ pub fn run() {
 
     let shutdown = setup_interrupt_listeners();
     let mut main_table = Table::new(&get_db_file_name().unwrap());
+    let mut cursor = Cursor::new(&mut main_table);
 
     let (sender_end, reciver_end) = mpsc::channel::<InputBuffer>();
 
     spawn_input_thead(sender_end);
-
     next_prompt();
 
     loop {
@@ -33,7 +34,7 @@ pub fn run() {
 
         match reciver_end.recv_timeout(std::time::Duration::from_millis(100)) {
             Ok(buffer) => {
-                match exec_command(&mut main_table, buffer.buffer.trim()) {
+                match exec_command(buffer.buffer.trim(), &mut cursor) {
                     ExecStatementRes::ExecFailure { cause } => {
                         println!("Error executing command: {}", cause);
                     }
@@ -49,11 +50,11 @@ pub fn run() {
     }
 }
 
-fn exec_command(table: &mut Table, command: &str) -> ExecStatementRes {
+fn exec_command(command: &str, cursor: &mut Cursor) -> ExecStatementRes {
     match command.parse::<CLIcommand>() {
         Ok(CLIcommand::Meta(cmd)) => exect_meta_cmd(cmd),
 
-        Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, table),
+        Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, cursor),
 
         Err(_) => ExecStatementRes::ExecFailure {
             cause: "SINTAX ERROR: Unrecognized command".to_string(),

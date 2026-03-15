@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod cmd;
+pub mod cursor;
 pub mod data;
 pub mod errors;
 pub mod input_buffer;
