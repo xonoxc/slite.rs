@@ -1,4 +1,4 @@
-use std::{mem::size_of, usize};
+use std::{fmt::Display, mem::size_of, usize};
 
 pub const ID_SIZE: usize = size_of::<i32>();
 pub const USERNAME_SIZE: usize = 32;
@@ -14,6 +14,16 @@ pub struct Row {
     pub id: i32,
     pub username: String,
     pub email: String,
+}
+
+impl Display for Row {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "| {:<5} | {:<32} | {:<355} |",
+            self.id, self.username, self.email
+        )
+    }
 }
 
 impl Row {

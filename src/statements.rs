@@ -2,7 +2,7 @@ use crate::{
     cursor::Cursor,
     data::{
         row::Row,
-        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, TABLE_MAX_ROWS},
+        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, TABLE_MAX_ROWS, Table},
     },
     input_buffer::InputBuffer,
 };
@@ -119,7 +119,7 @@ pub fn parse_statement(buffer: &InputBuffer) -> PrepareResult {
 pub fn exec_statement(statement_type: StatementType, cursor: &mut Cursor) -> ExecStatementRes {
     let excution_res = match statement_type {
         StatementType::StatementInsert { ref row } => exec_insert(&row, cursor),
-        StatementType::StatementSelect => exec_select(cursor),
+        StatementType::StatementSelect => exec_select(&mut cursor.table),
     };
 
     excution_res
@@ -139,6 +139,8 @@ fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
         };
     }
 
+    cursor.row_num = cursor.table.rows;
+
     let slot = match cursor.curr_value() {
         Ok(v) => v,
         Err(e) => {
@@ -154,21 +156,23 @@ fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
     ExecStatementRes::ExecSuccess
 }
 
-fn exec_select(cursor: &mut Cursor) -> ExecStatementRes {
+fn exec_select(table: &mut Table) -> ExecStatementRes {
+    let mut cursor = Cursor::new(table);
     let mut row = Row::new();
 
-    for _ in 0..cursor.table.rows {
-        let slot = match cursor.curr_value() {
-            Ok(v) => v,
+    while !cursor.at_table_end {
+        match cursor.curr_value() {
+            Ok(val) => {
+                row.ingest_deserialized(val);
+                println!("{}", row);
+                cursor.advance();
+            }
             Err(e) => {
                 return ExecStatementRes::ExecFailure {
                     cause: e.to_string(),
                 };
             }
-        };
-        row.ingest_deserialized(slot.as_ref());
-
-        println!("{:?}", row)
+        }
     }
 
     ExecStatementRes::ExecSuccess
