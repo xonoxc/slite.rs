@@ -1,11 +1,17 @@
 use crate::{
     cursor::Cursor,
     data::{
-        row::Row,
+        row::{ROW_SIZE, Row},
         table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, Table},
     },
     input_buffer::InputBuffer,
-    trees::{consts::LEAF_NODE_MAX_CELLS, page_node::Page},
+    trees::{
+        consts::{
+            COMMON_HEADER_SIZE, LEAF_NODE_CELL_SIZE, LEAF_NODE_HEADER_SIZE, LEAF_NODE_MAX_CELLS,
+            LEAF_NODE_SPACE_FOR_CELLS,
+        },
+        page_node::Page,
+    },
 };
 use std::{i32, str::FromStr};
 
@@ -16,6 +22,8 @@ pub enum MetaCmdRes {
     MetaRecognizedCommand,
     ExitCmd,
     MetaCmdClear,
+    MetaCmdBtree,
+    MetaCmdConstants,
     UnrecognizedCommand,
 }
 
@@ -30,6 +38,8 @@ impl FromStr for MetaCmdRes {
         match s {
             "_exit" => return Ok(MetaCmdRes::ExitCmd),
             "_cl" => return Ok(MetaCmdRes::MetaCmdClear),
+            "_btree" => return Ok(MetaCmdRes::MetaCmdBtree),
+            "_constants" => return Ok(MetaCmdRes::MetaCmdConstants),
             _ => Ok(MetaCmdRes::MetaRecognizedCommand),
         }
     }
@@ -182,6 +192,27 @@ pub fn exec_clear() -> ExecStatementRes {
     io::stdout()
         .flush()
         .expect("failed to flush clear screen ANSI escape codes");
+
+    ExecStatementRes::ExecSuccess
+}
+
+pub fn print_constants() -> ExecStatementRes {
+    println!("ROW_SIZE: {}\n", ROW_SIZE);
+    println!("COMMON_NODE_HEADER_SIZE: {}\n", COMMON_HEADER_SIZE);
+    println!("LEAF_NODE_HEADER_SIZE: {}\n", LEAF_NODE_HEADER_SIZE);
+    println!("LEAF_NODE_CELL_SIZE: {}\n", LEAF_NODE_CELL_SIZE);
+    println!("LEAF_NODE_SPACE_FOR_CELLS: {}\n", LEAF_NODE_SPACE_FOR_CELLS);
+    println!("LEAF_NODE_MAX_CELLS: {}\n", LEAF_NODE_MAX_CELLS);
+
+    ExecStatementRes::ExecSuccess
+}
+
+pub fn exect_print_btree(cursor: &mut Cursor) -> ExecStatementRes {
+    let page_bytes = &mut cursor.table.pager.get_page(0).unwrap();
+    let root_page = Page::new(page_bytes);
+
+    println!("Tree:");
+    root_page.print_leaf_node();
 
     ExecStatementRes::ExecSuccess
 }

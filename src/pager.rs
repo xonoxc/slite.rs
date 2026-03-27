@@ -28,7 +28,7 @@ impl Pager {
         let file_length = file.metadata().unwrap().len();
         let num_pages = (file_length as usize) / PAGE_SIZE;
 
-        if file_length % (PAGE_SIZE as u64) == 0 {
+        if file_length % (PAGE_SIZE as u64) != 0 {
             return Err(PagerError::InitError {
                 cause: "DB file corrupt. Invalid db file.".to_string(),
             });
@@ -67,6 +67,8 @@ impl Pager {
                 self.seek_file_to_offset(self.get_offset(page_num));
 
                 self.pages[page_num] = Some(self.read_into_buffer());
+            } else {
+                self.pages[page_num] = Some([0; PAGE_SIZE]);
             }
         }
 

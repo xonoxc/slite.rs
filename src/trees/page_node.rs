@@ -52,7 +52,7 @@ impl<'a> Page<'a> {
         &mut self.data[start..end]
     }
 
-    pub fn get_cell_key(&mut self, cell_num: usize) -> i32 {
+    pub fn get_cell_key(&self, cell_num: usize) -> i32 {
         i32::from_le_bytes(
             self.get_node_cell(cell_num)[..LEAF_NODE_VALUE_OFFSET]
                 .try_into()
@@ -65,7 +65,16 @@ impl<'a> Page<'a> {
             .copy_from_slice(&key.to_le_bytes());
     }
 
-    pub fn get_cell_value(&mut self, cell_num: usize) -> &mut [u8] {
-        &mut self.get_mutable_node_cell(cell_num)[LEAF_NODE_VALUE_OFFSET..]
+    pub fn get_cell_value(&self, cell_num: usize) -> &[u8] {
+        &self.get_node_cell(cell_num)[LEAF_NODE_VALUE_OFFSET..]
+    }
+
+    pub fn print_leaf_node(&self) {
+        let num_cells = self.cell_count();
+
+        for i in 0..num_cells {
+            let key = self.get_cell_key(i as usize);
+            println!("  - {} : {}", i, key);
+        }
     }
 }

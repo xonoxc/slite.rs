@@ -12,7 +12,9 @@ use crate::cursor::Cursor;
 use crate::data::table::Table;
 use crate::errors::ParseError;
 use crate::input_buffer::InputBuffer;
-use crate::statements::{ExecStatementRes, MetaCmdRes, exec_clear, exec_statement};
+use crate::statements::{
+    ExecStatementRes, MetaCmdRes, exec_clear, exec_statement, exect_print_btree, print_constants,
+};
 
 pub fn run() {
     println!("Welcome to slite-rs CLI:");
@@ -52,7 +54,7 @@ pub fn run() {
 
 fn exec_command(command: &str, cursor: &mut Cursor) -> ExecStatementRes {
     match command.parse::<CLIcommand>() {
-        Ok(CLIcommand::Meta(cmd)) => exect_meta_cmd(cmd),
+        Ok(CLIcommand::Meta(cmd)) => exect_meta_cmd(cmd, cursor),
 
         Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, cursor),
 
@@ -62,10 +64,12 @@ fn exec_command(command: &str, cursor: &mut Cursor) -> ExecStatementRes {
     }
 }
 
-fn exect_meta_cmd(meta_cmd: MetaCmdRes) -> ExecStatementRes {
+fn exect_meta_cmd(meta_cmd: MetaCmdRes, cursor: &mut Cursor) -> ExecStatementRes {
     match meta_cmd {
         MetaCmdRes::ExitCmd => ExecStatementRes::ExecExit,
         MetaCmdRes::MetaCmdClear => exec_clear(),
+        MetaCmdRes::MetaCmdConstants => print_constants(),
+        MetaCmdRes::MetaCmdBtree => exect_print_btree(cursor),
         _ => ExecStatementRes::ExecFailure {
             cause: "Unrecognized meta cmd".to_string(),
         },
