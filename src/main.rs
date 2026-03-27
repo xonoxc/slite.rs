@@ -6,6 +6,7 @@ pub mod errors;
 pub mod input_buffer;
 pub mod pager;
 pub mod statements;
+pub mod trees;
 
 fn main() {
     cli::run();

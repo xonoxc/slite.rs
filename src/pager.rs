@@ -12,11 +12,12 @@ use crate::{
 pub struct Pager {
     pub file: File,
     pub file_length: u64,
+    pub num_pages: usize,
     pub pages: Vec<Option<[u8; PAGE_SIZE]>>,
 }
 
 impl Pager {
-    pub fn new(db_file_path: &str) -> Self {
+    pub fn new(db_file_path: &str) -> Result<Self, PagerError> {
         let file = OpenOptions::new()
             .write(true)
             .read(true)
@@ -25,12 +26,20 @@ impl Pager {
             .expect("failed to open database file. Please make sure it exists..");
 
         let file_length = file.metadata().unwrap().len();
+        let num_pages = (file_length as usize) / PAGE_SIZE;
 
-        Self {
+        if file_length % (PAGE_SIZE as u64) == 0 {
+            return Err(PagerError::InitError {
+                cause: "DB file corrupt. Invalid db file.".to_string(),
+            });
+        }
+
+        Ok(Self {
             file,
             file_length,
+            num_pages,
             pages: vec![None],
-        }
+        })
     }
 
     pub fn get_page(&mut self, page_num: usize) -> Result<&mut [u8; PAGE_SIZE], PagerError> {
@@ -41,7 +50,7 @@ impl Pager {
             });
         }
 
-        if page_num >= self.pages.len() {
+        if page_num >= self.num_pages {
             self.pages.resize(page_num + 1, None);
         }
 
@@ -61,17 +70,11 @@ impl Pager {
             }
         }
 
-        let page = self.pages[page_num]
-            .as_mut()
-            .ok_or(PagerError::PageNotFound {
-                page_seeked: page_num,
-            })?;
-
-        Ok(page)
+        Ok(self.pages[page_num].as_mut().unwrap())
     }
 
     pub fn allocate_page(&mut self, page_num: usize) {
-        if page_num >= self.pages.len() {
+        if page_num >= self.num_pages {
             self.pages.resize(page_num + 1, None);
         }
 

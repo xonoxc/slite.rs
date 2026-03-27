@@ -2,9 +2,10 @@ use crate::{
     cursor::Cursor,
     data::{
         row::Row,
-        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, TABLE_MAX_ROWS, Table},
+        table::{MAX_EMAIL_SIZE, MAX_USERNAME_SIZE, Table},
     },
     input_buffer::InputBuffer,
+    trees::{consts::LEAF_NODE_MAX_CELLS, page_node::Page},
 };
 use std::{i32, str::FromStr};
 
@@ -33,6 +34,7 @@ impl FromStr for MetaCmdRes {
         }
     }
 }
+
 #[derive(Debug)]
 pub enum StatementType {
     StatementInsert { row: Row },
@@ -133,15 +135,15 @@ pub enum ExecStatementRes {
 }
 
 fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
-    if cursor.table.rows >= TABLE_MAX_ROWS {
+    let page = Page::new(cursor.table.pager.get_page(cursor.curr_page_num).unwrap());
+
+    if page.cell_count() as usize >= LEAF_NODE_MAX_CELLS {
         return ExecStatementRes::ExecFailure {
             cause: "table full".to_string(),
         };
     }
 
-    cursor.row_num = cursor.table.rows;
-
-    let slot = match cursor.curr_value() {
+    match cursor.insert_leaf_page(row.id as usize, row) {
         Ok(v) => v,
         Err(e) => {
             return ExecStatementRes::ExecFailure {
@@ -149,9 +151,6 @@ fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
             };
         }
     };
-
-    row.serialize(slot);
-    cursor.table.rows += 1;
 
     ExecStatementRes::ExecSuccess
 }

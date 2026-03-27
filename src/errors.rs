@@ -13,6 +13,9 @@ pub enum PagerError {
 
     #[error("error flushing data to the disk for page {page_num}")]
     FlushError { page_num: usize },
+
+    #[error("[DB_INIT_ERROR]:: {cause}")]
+    InitError { cause: String },
 }
 
 #[derive(Debug, Error)]

@@ -18,7 +18,7 @@ pub fn run() {
     println!("Welcome to slite-rs CLI:");
 
     let shutdown = setup_interrupt_listeners();
-    let mut main_table = Table::new(&get_db_file_name().unwrap());
+    let mut main_table = Table::new(&get_db_file_name().unwrap()).unwrap();
     let mut cursor = Cursor::new(&mut main_table);
 
     let (sender_end, reciver_end) = mpsc::channel::<InputBuffer>();
