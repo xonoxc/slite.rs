@@ -2,9 +2,12 @@ use std::usize;
 
 use crate::{
     data::table::PAGE_SIZE,
-    trees::consts::{
-        LEAF_NODE_CELL_SIZE, LEAF_NODE_HEADER_SIZE, LEAF_NODE_NUM_CELLS_OFFSET,
-        LEAF_NODE_NUM_CELLS_SIZE, LEAF_NODE_VALUE_OFFSET,
+    trees::{
+        consts::{
+            LEAF_NODE_CELL_SIZE, LEAF_NODE_HEADER_SIZE, LEAF_NODE_NUM_CELLS_OFFSET,
+            LEAF_NODE_NUM_CELLS_SIZE, LEAF_NODE_VALUE_OFFSET, NODE_TYPE_OFFSET, NODE_TYPE_SIZE,
+        },
+        node_type::NodeType,
     },
 };
 
@@ -67,6 +70,12 @@ impl<'a> Page<'a> {
 
     pub fn get_cell_value(&self, cell_num: usize) -> &[u8] {
         &self.get_node_cell(cell_num)[LEAF_NODE_VALUE_OFFSET..]
+    }
+
+    pub fn get_node_type(&self) -> NodeType {
+        let raw_data =
+            &self.data[NODE_TYPE_OFFSET..NODE_TYPE_OFFSET + NODE_TYPE_SIZE][NODE_TYPE_OFFSET];
+        NodeType::from_u8(raw_data)
     }
 
     pub fn print_leaf_node(&self) {

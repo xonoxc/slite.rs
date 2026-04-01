@@ -1,10 +1,10 @@
 use crate::data::{row::ROW_SIZE, table::PAGE_SIZE};
 use std::mem;
 
-pub const NODE_TYPE_SIZE: usize = mem::size_of::<u8>();
+pub const NODE_TYPE_SIZE: usize = 1;
 pub const NODE_TYPE_OFFSET: usize = 0;
 
-pub const IS_ROOT_SIZE: usize = mem::size_of::<u8>();
+pub const IS_ROOT_SIZE: usize = 1;
 pub const IS_ROOT_OFFSET: usize = NODE_TYPE_OFFSET + NODE_TYPE_SIZE;
 
 pub const PARENT_POINTER_SIZE: usize = mem::size_of::<u32>();

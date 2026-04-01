@@ -1,4 +1,3 @@
-use core::panic;
 use std::{u32, usize};
 
 use crate::data::row::Row;
@@ -6,6 +5,7 @@ use crate::data::table::Table;
 use crate::trees::consts::{
     LEAF_NODE_CELL_SIZE, LEAF_NODE_HEADER_SIZE, LEAF_NODE_MAX_CELLS, LEAF_NODE_VALUE_OFFSET,
 };
+use crate::trees::node_type::NodeType;
 use crate::trees::page_node::Page;
 use crate::{data::row::ROW_SIZE, errors::PagerError};
 
@@ -29,6 +29,48 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn leaf_node_find(&mut self, page_num: usize, key: usize) {
+        /*
+         * this function performs a binary search
+         * given leaf node and page number.
+         * **/
+        let page = Page::new(self.table.pager.get_page(page_num).unwrap());
+        let num_cells = page.cell_count();
+
+        self.curr_page_num = page_num;
+
+        let mut min_index = 0;
+
+        let mut one_past_max_index = num_cells;
+
+        while one_past_max_index != min_index {
+            let index = (min_index + one_past_max_index) / 2;
+            let index_key = page.get_cell_key(index as usize) as usize;
+
+            if key == index_key {
+                self.cell_num = index as usize;
+                return;
+            } else if key < index_key {
+                one_past_max_index = index;
+            } else {
+                min_index = index + 1;
+            }
+        }
+
+        self.cell_num = min_index as usize;
+    }
+
+    pub fn table_find(&mut self, key: usize) {
+        let root_page = Page::new(self.table.pager.get_page(self.table.root_page_num).unwrap());
+
+        if root_page.get_node_type() == NodeType::NodeLeaf {
+            self.leaf_node_find(self.table.root_page_num, key);
+        } else {
+            todo!("internal node searching not implemented yet");
+        }
+    }
+
+    /*
     pub fn new_table_end(&mut self) {
         let mut root_node_data = match self.table.pager.get_page(self.curr_page_num) {
             Ok(&mut val) => val,
@@ -40,7 +82,7 @@ impl<'a> Cursor<'a> {
 
         self.cell_num = num_cells as usize;
         self.at_table_end = true;
-    }
+    }*/
 
     pub fn advance(&mut self) {
         let page = Page::new(self.table.pager.get_page(self.curr_page_num).unwrap());

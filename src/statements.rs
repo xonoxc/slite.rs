@@ -13,7 +13,7 @@ use crate::{
         page_node::Page,
     },
 };
-use std::{i32, str::FromStr};
+use std::{i32, str::FromStr, usize};
 
 use std::io::{self, Write};
 
@@ -145,22 +145,35 @@ pub enum ExecStatementRes {
 }
 
 fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
-    let page = Page::new(cursor.table.pager.get_page(cursor.curr_page_num).unwrap());
+    let key_to_insert = row.id as usize;
 
-    if page.cell_count() as usize >= LEAF_NODE_MAX_CELLS {
+    cursor.table_find(key_to_insert);
+
+    let page = Page::new(cursor.table.pager.get_page(cursor.curr_page_num).unwrap());
+    let page_cell_count = page.cell_count() as usize;
+
+    if cursor.cell_num < page_cell_count {
+        let existing_key = page.get_cell_key(cursor.cell_num);
+
+        if existing_key as usize == key_to_insert {
+            return ExecStatementRes::ExecFailure {
+                cause: "duplicate key".to_string(),
+            };
+        }
+    }
+
+    if page_cell_count >= LEAF_NODE_MAX_CELLS {
         return ExecStatementRes::ExecFailure {
             cause: "table full".to_string(),
         };
     }
 
-    match cursor.insert_leaf_page(row.id as usize, row) {
-        Ok(v) => v,
-        Err(e) => {
-            return ExecStatementRes::ExecFailure {
-                cause: e.to_string(),
-            };
-        }
-    };
+    if let Err(e) = cursor.insert_leaf_page(key_to_insert, row) {
+        return ExecStatementRes::ExecFailure {
+            cause: e.to_string(),
+        };
+    }
+    cursor.advance();
 
     ExecStatementRes::ExecSuccess
 }
