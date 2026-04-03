@@ -1,7 +1,7 @@
 use std::usize;
 
 use crate::{
-    data::table::PAGE_SIZE,
+    data::{row::Row, table::PAGE_SIZE},
     trees::{
         consts::{
             LEAF_NODE_CELL_SIZE, LEAF_NODE_HEADER_SIZE, LEAF_NODE_NUM_CELLS_OFFSET,
@@ -70,6 +70,16 @@ impl<'a> Page<'a> {
 
     pub fn get_cell_value(&self, cell_num: usize) -> &[u8] {
         &self.get_node_cell(cell_num)[LEAF_NODE_VALUE_OFFSET..]
+    }
+
+    pub fn write_cell_value(&mut self, value: &Row, cell_num: usize) {
+        value.serialize(&mut self.get_node_cell_mut(cell_num)[..LEAF_NODE_VALUE_OFFSET]);
+    }
+
+    pub fn get_cell_row(&self, cell_num: usize) -> Row {
+        let mut new_row = Row::new();
+        new_row.ingest_deserialized(&self.get_node_cell(cell_num)[LEAF_NODE_VALUE_OFFSET..]);
+        new_row
     }
 
     pub fn get_node_type(&self) -> NodeType {

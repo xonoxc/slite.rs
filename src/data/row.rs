@@ -9,7 +9,7 @@ pub const USERNAME_OFFSET: usize = ID_OFFSET + ID_SIZE;
 pub const EMAIL_OFFSET: usize = USERNAME_OFFSET + USERNAME_SIZE;
 pub const ROW_SIZE: usize = ID_SIZE + USERNAME_SIZE + EMAIL_SIZE;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Row {
     pub id: i32,
     pub username: String,

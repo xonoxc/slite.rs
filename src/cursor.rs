@@ -87,10 +87,20 @@ impl<'a> Cursor<'a> {
     pub fn advance(&mut self) {
         let page = Page::new(self.table.pager.get_page(self.curr_page_num).unwrap());
 
-        self.curr_page_num += 1;
-        if self.cell_num >= page.cell_count() as usize {
-            self.at_table_end = true;
+        if self.cell_num < page.cell_count() as usize {
+            self.cell_num += 1;
+            return;
         }
+
+        let next_page_num = self.curr_page_num + 1;
+
+        if self.table.pager.get_page(next_page_num).is_err() {
+            self.at_table_end = true;
+            return;
+        }
+
+        self.curr_page_num = next_page_num;
+        self.cell_num = 0;
     }
 
     pub fn curr_value(&mut self) -> Result<&mut [u8], PagerError> {
@@ -103,21 +113,89 @@ impl<'a> Cursor<'a> {
         Ok(&mut page_data[value_offset..end])
     }
 
+    fn get_unused_page(&self) -> usize {
+        self.table.pager.num_pages
+    }
+
+    fn split_node_and_insert(&mut self, key: usize, row: &Row) {
+        let new_page_num = self.get_unused_page();
+        self.table.pager.allocate_page(new_page_num);
+
+        let (old_page_bytes, new_page_bytes) = self
+            .table
+            .pager
+            .get_two_pages(self.curr_page_num, new_page_num)
+            .unwrap();
+
+        let mut old_page = Page::new(old_page_bytes);
+        let mut new_page = Page::new(new_page_bytes);
+
+        let key_u32 = key as i32;
+
+        let num_cells = old_page.cell_count() as usize;
+        let total = num_cells + 1;
+
+        let insert_pos = (0..num_cells)
+            .find(|&i| old_page.get_cell_key(i) >= key_u32)
+            .unwrap_or(num_cells);
+
+        let split_index = total / 2;
+
+        for i in (0..total).rev() {
+            let (k, r) = if i == insert_pos {
+                (key, row)
+            } else if i > insert_pos {
+                let old_i = i - 1;
+                (
+                    old_page.get_cell_key(old_i) as usize,
+                    &old_page.get_cell_row(old_i),
+                )
+            } else {
+                (old_page.get_cell_key(i) as usize, &old_page.get_cell_row(i))
+            };
+
+            if i >= split_index {
+                let dest = i - split_index;
+                new_page.set_cell_key(k, dest);
+                new_page.write_cell_value(r, dest);
+            } else {
+                old_page.set_cell_key(k, i);
+                old_page.write_cell_value(r, i);
+            }
+        }
+
+        old_page.set_cell_count(split_index as u32);
+        new_page.set_cell_count((total - split_index) as u32);
+
+        let routing_key = new_page.get_cell_key(0);
+
+        if key >= routing_key as usize {
+            self.curr_page_num = new_page_num;
+        }
+    }
+
     pub fn insert_leaf_page(
         &mut self,
         key: usize,
         row: &Row,
     ) -> Result<&mut [u8; 4096], PagerError> {
-        let last_page_bytes = self.table.pager.get_page(self.curr_page_num)?;
-
         let num_cells = {
+            let last_page_bytes = self.table.pager.get_page(self.curr_page_num)?;
             let page = Page::new(last_page_bytes);
             page.cell_count() as usize
         };
 
         if num_cells >= LEAF_NODE_MAX_CELLS {
-            todo!("implement node splitting")
+            self.split_node_and_insert(key, row);
         };
+
+        let num_cells = {
+            let last_page_bytes = self.table.pager.get_page(self.curr_page_num)?;
+            let page = Page::new(last_page_bytes);
+            page.cell_count() as usize
+        };
+
+        let last_page_bytes = self.table.pager.get_page(self.curr_page_num)?;
 
         if self.cell_num < num_cells {
             for i in (self.cell_num..num_cells).rev() {
@@ -133,7 +211,6 @@ impl<'a> Cursor<'a> {
 
         {
             let mut page = Page::new(last_page_bytes);
-
             page.set_cell_key(key, self.cell_num);
         }
 

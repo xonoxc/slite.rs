@@ -42,6 +42,61 @@ impl Pager {
         })
     }
 
+    pub fn get_two_pages(
+        &mut self,
+        page_num1: usize,
+        page_num2: usize,
+    ) -> Result<(&mut [u8; PAGE_SIZE], &mut [u8; PAGE_SIZE]), PagerError> {
+        if page_num1 == page_num2 {
+            panic!("cannot borrow same page twice mutably");
+        }
+
+        for &page_num in &[page_num1, page_num2] {
+            if page_num >= TABLE_MAX_PAGES {
+                return Err(PagerError::OutBoundSeek {
+                    page: page_num,
+                    max_allowed_pages: TABLE_MAX_PAGES,
+                });
+            }
+
+            if page_num >= self.pages.len() {
+                self.pages.resize(page_num + 1, None);
+            }
+
+            if self.pages[page_num].is_none() {
+                let i64_page_size = PAGE_SIZE as u64;
+
+                let mut number_of_pages = self.file_length / i64_page_size;
+                if self.file_length % i64_page_size > 0 {
+                    number_of_pages += 1;
+                }
+
+                if (page_num as u64) < number_of_pages {
+                    self.seek_file_to_offset(self.get_offset(page_num));
+                    self.pages[page_num] = Some(self.read_into_buffer());
+                } else {
+                    self.pages[page_num] = Some([0; PAGE_SIZE]);
+                }
+            }
+        }
+
+        let (first, second) = if page_num1 < page_num2 {
+            let (left, right) = self.pages.split_at_mut(page_num2);
+            (
+                left[page_num1].as_mut().unwrap(),
+                right[0].as_mut().unwrap(),
+            )
+        } else {
+            let (left, right) = self.pages.split_at_mut(page_num1);
+            (
+                right[0].as_mut().unwrap(),
+                left[page_num2].as_mut().unwrap(),
+            )
+        };
+
+        Ok((first, second))
+    }
+
     pub fn get_page(&mut self, page_num: usize) -> Result<&mut [u8; PAGE_SIZE], PagerError> {
         if page_num >= TABLE_MAX_PAGES {
             return Err(PagerError::OutBoundSeek {

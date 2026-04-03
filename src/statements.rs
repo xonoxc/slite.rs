@@ -162,12 +162,6 @@ fn exec_insert(row: &Row, cursor: &mut Cursor) -> ExecStatementRes {
         }
     }
 
-    if page_cell_count >= LEAF_NODE_MAX_CELLS {
-        return ExecStatementRes::ExecFailure {
-            cause: "table full".to_string(),
-        };
-    }
-
     if let Err(e) = cursor.insert_leaf_page(key_to_insert, row) {
         return ExecStatementRes::ExecFailure {
             cause: e.to_string(),
