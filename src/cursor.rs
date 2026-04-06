@@ -70,20 +70,6 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /*
-    pub fn new_table_end(&mut self) {
-        let mut root_node_data = match self.table.pager.get_page(self.curr_page_num) {
-            Ok(&mut val) => val,
-            Err(e) => panic!("{}", e),
-        };
-
-        let page = Page::new(&mut root_node_data);
-        let num_cells = page.cell_count();
-
-        self.cell_num = num_cells as usize;
-        self.at_table_end = true;
-    }*/
-
     pub fn advance(&mut self) {
         let page = Page::new(self.table.pager.get_page(self.curr_page_num).unwrap());
 
@@ -121,57 +107,60 @@ impl<'a> Cursor<'a> {
         let new_page_num = self.get_unused_page();
         self.table.pager.allocate_page(new_page_num);
 
-        let (old_page_bytes, new_page_bytes) = self
+        let [curr_page_bytes, left_page_bytes, right_page_bytes] = self
             .table
             .pager
-            .get_two_pages(self.curr_page_num, new_page_num)
+            .get_two_pages([self.curr_page_num, new_page_num, new_page_num + 1])
             .unwrap();
 
-        let mut old_page = Page::new(old_page_bytes);
-        let mut new_page = Page::new(new_page_bytes);
+        let mut curr_page = Page::new(curr_page_bytes);
+        let mut left_page = Page::new(left_page_bytes);
+        let mut right_page = Page::new(right_page_bytes);
+
+        left_page.set_node_type(NodeType::NodeLeaf);
+        right_page.set_node_type(NodeType::NodeLeaf);
 
         let key_u32 = key as i32;
 
-        let num_cells = old_page.cell_count() as usize;
+        let num_cells = curr_page.cell_count() as usize;
         let total = num_cells + 1;
 
         let insert_pos = (0..num_cells)
-            .find(|&i| old_page.get_cell_key(i) >= key_u32)
+            .find(|&i| curr_page.get_cell_key(i) >= key_u32)
             .unwrap_or(num_cells);
 
         let split_index = total / 2;
 
-        for i in (0..total).rev() {
+        for i in (0..num_cells).rev() {
             let (k, r) = if i == insert_pos {
                 (key, row)
-            } else if i > insert_pos {
-                let old_i = i - 1;
-                (
-                    old_page.get_cell_key(old_i) as usize,
-                    &old_page.get_cell_row(old_i),
-                )
             } else {
-                (old_page.get_cell_key(i) as usize, &old_page.get_cell_row(i))
+                let old_i = if i > insert_pos { i - 1 } else { i };
+                (
+                    curr_page.get_cell_key(old_i) as usize,
+                    &curr_page.get_cell_row(old_i),
+                )
             };
 
             if i >= split_index {
                 let dest = i - split_index;
-                new_page.set_cell_key(k, dest);
-                new_page.write_cell_value(r, dest);
+                right_page.insert_cell(k, &r, dest);
             } else {
-                old_page.set_cell_key(k, i);
-                old_page.write_cell_value(r, i);
+                left_page.insert_cell(k, &r, i);
             }
         }
 
-        old_page.set_cell_count(split_index as u32);
-        new_page.set_cell_count((total - split_index) as u32);
+        left_page.set_cell_count(split_index as u32);
+        right_page.set_cell_count((total - split_index) as u32);
 
-        let routing_key = new_page.get_cell_key(0);
+        let routing_key = right_page.get_cell_key(0);
 
         if key >= routing_key as usize {
             self.curr_page_num = new_page_num;
         }
+
+        curr_page.set_node_type(NodeType::Internal);
+        curr_page.set_cell_count(1);
     }
 
     pub fn insert_leaf_page(

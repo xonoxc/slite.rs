@@ -30,6 +30,7 @@ impl Table {
              * */
             let mut root_page = Page::new(pager.get_page(0)?);
             root_page.set_cell_count(0);
+            root_page.set_root_node(true);
         }
 
         Ok(Self {

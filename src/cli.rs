@@ -55,7 +55,6 @@ pub fn run() {
 fn exec_command(command: &str, cursor: &mut Cursor) -> ExecStatementRes {
     match command.parse::<CLIcommand>() {
         Ok(CLIcommand::Meta(cmd)) => exect_meta_cmd(cmd, cursor),
-
         Ok(CLIcommand::Statement(stmt_type)) => exec_statement(stmt_type, cursor),
 
         Err(_) => ExecStatementRes::ExecFailure {

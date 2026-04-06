@@ -1,6 +1,7 @@
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Seek, Write},
+    usize,
 };
 
 use crate::{
@@ -42,16 +43,19 @@ impl Pager {
         })
     }
 
-    pub fn get_two_pages(
+    pub fn get_two_pages<const N: usize>(
         &mut self,
-        page_num1: usize,
-        page_num2: usize,
-    ) -> Result<(&mut [u8; PAGE_SIZE], &mut [u8; PAGE_SIZE]), PagerError> {
-        if page_num1 == page_num2 {
-            panic!("cannot borrow same page twice mutably");
+        mut page_nums: [usize; N],
+    ) -> Result<[&mut [u8; PAGE_SIZE]; N], PagerError> {
+        page_nums.sort_unstable();
+
+        for i in 1..N {
+            if page_nums[i] == page_nums[i - 1] {
+                panic!("duplicate page access");
+            }
         }
 
-        for &page_num in &[page_num1, page_num2] {
+        for &page_num in &page_nums {
             if page_num >= TABLE_MAX_PAGES {
                 return Err(PagerError::OutBoundSeek {
                     page: page_num,
@@ -64,10 +68,10 @@ impl Pager {
             }
 
             if self.pages[page_num].is_none() {
-                let i64_page_size = PAGE_SIZE as u64;
+                let page_size = PAGE_SIZE as u64;
 
-                let mut number_of_pages = self.file_length / i64_page_size;
-                if self.file_length % i64_page_size > 0 {
+                let mut number_of_pages = self.file_length / page_size;
+                if self.file_length % page_size > 0 {
                     number_of_pages += 1;
                 }
 
@@ -80,21 +84,18 @@ impl Pager {
             }
         }
 
-        let (first, second) = if page_num1 < page_num2 {
-            let (left, right) = self.pages.split_at_mut(page_num2);
-            (
-                left[page_num1].as_mut().unwrap(),
-                right[0].as_mut().unwrap(),
-            )
-        } else {
-            let (left, right) = self.pages.split_at_mut(page_num1);
-            (
-                right[0].as_mut().unwrap(),
-                left[page_num2].as_mut().unwrap(),
-            )
-        };
+        let mut result: [*mut [u8; PAGE_SIZE]; N] = std::array::from_fn(|_| std::ptr::null_mut());
+        let mut slice = &mut self.pages[..];
 
-        Ok((first, second))
+        for (i, &page_num) in page_nums.iter().enumerate() {
+            let (left, right) = slice.split_at_mut(page_num);
+            let page = right[0].as_mut().unwrap();
+
+            result[i] = page as *mut _;
+            slice = left;
+        }
+
+        Ok(result.map(|ptr| unsafe { &mut *ptr }))
     }
 
     pub fn get_page(&mut self, page_num: usize) -> Result<&mut [u8; PAGE_SIZE], PagerError> {
