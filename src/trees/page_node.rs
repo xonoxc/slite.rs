@@ -151,13 +151,4 @@ impl<'a> Page<'a> {
                 .expect("invalid num keys bytes"),
         )
     }
-
-    pub fn print_leaf_node(&self) {
-        let num_cells = self.cell_count();
-
-        for i in 0..num_cells {
-            let key = self.get_cell_key(i as usize);
-            println!("  - {} : {}", i, key);
-        }
-    }
 }

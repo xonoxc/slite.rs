@@ -72,21 +72,26 @@ impl<'a> Cursor<'a> {
 
     pub fn advance(&mut self) {
         let page = Page::new(self.table.pager.get_page(self.curr_page_num).unwrap());
+        let cell_count = page.cell_count() as usize;
 
-        if self.cell_num < page.cell_count() as usize {
+        if self.cell_num < cell_count {
             self.cell_num += 1;
             return;
         }
 
-        let next_page_num = self.curr_page_num + 1;
+        let mut next_page_num = self.curr_page_num + 1;
 
-        if self.table.pager.get_page(next_page_num).is_err() {
-            self.at_table_end = true;
-            return;
+        while next_page_num < self.table.pager.num_pages {
+            let next_page = Page::new(self.table.pager.get_page(next_page_num).unwrap());
+            if next_page.cell_count() > 0 {
+                self.curr_page_num = next_page_num;
+                self.cell_num = 0;
+                return;
+            }
+            next_page_num += 1;
         }
 
-        self.curr_page_num = next_page_num;
-        self.cell_num = 0;
+        self.at_table_end = true
     }
 
     pub fn curr_value(&mut self) -> Result<&mut [u8], PagerError> {

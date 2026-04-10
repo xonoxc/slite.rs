@@ -215,11 +215,8 @@ pub fn print_constants() -> ExecStatementRes {
 }
 
 pub fn exect_print_btree(cursor: &mut Cursor) -> ExecStatementRes {
-    let page_bytes = &mut cursor.table.pager.get_page(0).unwrap();
-    let root_page = Page::new(page_bytes);
-
     println!("Tree:");
-    root_page.print_leaf_node();
+    cursor.table.pager.print_tree(0, 0);
 
     ExecStatementRes::ExecSuccess
 }

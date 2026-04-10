@@ -7,6 +7,7 @@ use std::{
 use crate::{
     data::table::{PAGE_SIZE, TABLE_MAX_PAGES},
     errors::PagerError,
+    trees::{consts::INTERNAL_NODE_CHILD_SIZE, node_type::NodeType, page_node::Page},
 };
 
 #[derive(Debug)]
@@ -106,7 +107,7 @@ impl Pager {
             });
         }
 
-        if page_num >= self.num_pages {
+        if page_num >= self.pages.len() {
             self.pages.resize(page_num + 1, None);
         }
 
@@ -176,5 +177,67 @@ impl Pager {
             .expect("error reading page from file");
 
         page_buf
+    }
+
+    pub fn print_tree(&mut self, page_num: usize, indentation_level: u32) {
+        let node_type;
+        let num_keys;
+
+        {
+            let curr_node = Page::new(self.get_page(page_num).unwrap());
+            node_type = curr_node.get_node_type();
+
+            num_keys = match node_type {
+                NodeType::Internal => curr_node.internal_node_num_keys(),
+                NodeType::NodeLeaf => curr_node.cell_count() as usize,
+            };
+        }
+
+        match node_type {
+            NodeType::Internal => {
+                indent(indentation_level);
+
+                let curr_node = Page::new(self.get_page(page_num).unwrap());
+                let right_child_page_num =
+                    u32::from_le_bytes(curr_node.internal_node_right_child().try_into().unwrap())
+                        as usize;
+
+                self.print_tree(right_child_page_num, indentation_level + 1);
+
+                for i in 0..num_keys {
+                    let curr_node = Page::new(self.get_page(page_num).unwrap());
+
+                    let child_page_num = u32::from_le_bytes(
+                        curr_node.internal_node_cell(i)[..INTERNAL_NODE_CHILD_SIZE]
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+
+                    self.print_tree(child_page_num, indentation_level + 1);
+                }
+            }
+            NodeType::NodeLeaf => {
+                indent(indentation_level);
+
+                println!("- leaf (size %{})", num_keys);
+
+                for i in 0..num_keys {
+                    indent(indentation_level + 1);
+
+                    let cell_key = {
+                        let curr_node = Page::new(self.get_page(page_num).unwrap());
+                        curr_node.get_cell_key(i as usize)
+                    };
+
+                    println!("- {}", cell_key);
+                }
+            }
+        }
+    }
+}
+
+fn indent(level: u32) {
+    for _ in 0..level {
+        print!(" ")
     }
 }
